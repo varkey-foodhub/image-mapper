@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>FoodHub AI | Smart Menu Mapper</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        foodred: '#B11226',
+                        fooddark: '#7A0D1A'
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+
+<body class="bg-white min-h-screen font-sans text-gray-800">
+
+<!-- NAV -->
+<nav class="bg-foodred text-white shadow-lg">
+    <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <i class="fa-solid fa-utensils text-xl"></i>
+            <span class="font-bold text-2xl tracking-tight">FoodHub AI</span>
+        </div>
+        <div class="text-sm opacity-90 font-medium">
+            Vector Mapping Engine
+        </div>
+    </div>
+</nav>
+
+<main class="max-w-6xl mx-auto mt-12 px-6 pb-20">
+
+    <!-- SEARCH CARD -->
+    <div class="bg-white border border-gray-200 rounded-2xl shadow-lg p-10 mb-12">
+        <h1 class="text-3xl font-extrabold text-center mb-4">
+            Smart Menu Image Mapping
+        </h1>
+        <p class="text-center text-gray-500 mb-8">
+            Semantic similarity powered by vector embeddings
+        </p>
+
+        <div class="relative max-w-2xl mx-auto">
+            <input type="text"
+                id="searchInput"
+                placeholder="e.g. coke zero 330ml"
+                class="w-full pl-6 pr-16 py-4 rounded-full border-2 border-gray-200 focus:border-foodred focus:ring-4 focus:ring-red-100 outline-none text-lg transition"
+                onkeydown="if(event.key === 'Enter') performSearch()">
+
+            <button onclick="performSearch()"
+                class="absolute right-2 top-2 bottom-2 bg-foodred hover:bg-fooddark text-white rounded-full px-6 font-semibold transition">
+                <i class="fa-solid fa-magnifying-glass"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- SELECTED MATCH -->
+    <div id="selectedSection" class="hidden mb-12">
+        <h2 class="text-xl font-bold mb-5 text-foodred">
+            Selected Match
+        </h2>
+        <div id="selectedCard"></div>
+    </div>
+
+    <!-- OTHER MATCHES -->
+    <div>
+        <h2 class="text-xl font-bold mb-6">
+            Other Candidates
+        </h2>
+        <div id="resultsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+    </div>
+
+</main>
+
+<script>
+async function performSearch() {
+    const query = document.getElementById('searchInput').value.trim();
+    const grid = document.getElementById('resultsGrid');
+    const selectedSection = document.getElementById('selectedSection');
+    const selectedCard = document.getElementById('selectedCard');
+
+    if (!query) return;
+
+    grid.innerHTML = '';
+    selectedSection.classList.add('hidden');
+
+    try {
+        const response = await fetch('/search', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query })
+        });
+
+        const data = await response.json();
+        const results = data.results || [];
+
+        if (!results.length) {
+            grid.innerHTML = `
+                <div class="col-span-full text-center py-10 text-gray-400">
+                    <i class="fa-regular fa-face-frown text-4xl mb-3"></i>
+                    <p>No matches found.</p>
+                </div>`;
+            return;
+        }
+
+        // Sort highest first
+        results.sort((a, b) => b.score - a.score);
+
+        const best = results[0];
+        const confidence = best.score * 100;
+        const isHighConfidence = confidence >= 70;
+
+        // SELECTED CARD
+        selectedCard.innerHTML = `
+            <div class="rounded-2xl shadow-xl p-8 flex flex-col md:flex-row gap-8 items-center
+                        ${isHighConfidence ? 'bg-foodred text-white' : 'bg-yellow-50 border border-yellow-300'}">
+
+                <div class="text-5xl">
+                    <i class="fa-solid ${isHighConfidence ? 'fa-circle-check' : 'fa-triangle-exclamation'}"></i>
+                </div>
+
+                <div class="flex-1">
+                    <div class="text-sm uppercase tracking-wider font-semibold mb-2
+                                ${isHighConfidence ? 'opacity-90' : 'text-yellow-700'}">
+                        ${isHighConfidence ? 'Auto Selected (High Confidence)' : 'Best Match (Needs Review)'}
+                    </div>
+
+                    <h3 class="text-2xl font-bold mb-2">${best.name}</h3>
+
+                    <div class="text-lg font-semibold">
+                        Confidence: ${confidence.toFixed(1)}%
+                    </div>
+
+                    <div class="text-sm mt-2 opacity-80">
+                        Image ID: ${best.image_id}
+                    </div>
+                </div>
+            </div>
+        `;
+
+        selectedSection.classList.remove('hidden');
+
+        // OTHER RESULTS
+        results.slice(1).forEach(item => {
+            const score = (item.score * 100).toFixed(1);
+
+            const card = `
+                <div class="bg-white rounded-xl shadow-md hover:shadow-lg transition p-6 border border-gray-100">
+                    <div class="text-xs font-bold uppercase text-foodred mb-1">
+                        ${score}% match
+                    </div>
+                    <h3 class="font-bold text-gray-800 mb-2">${item.name}</h3>
+                    <div class="text-sm text-gray-400">
+                        Image ID: ${item.image_id}
+                    </div>
+                </div>
+            `;
+
+            grid.innerHTML += card;
+        });
+
+    } catch (err) {
+        console.error(err);
+        alert("Search failed.");
+    }
+}
+</script>
+
+</body>
+</html>
